@@ -4,7 +4,9 @@ import platform
 
 
 MyPlatform = platform.system() # current operating system
-
+timestampPath = "timestamp.txt"
+numberPath = "number.txt"
+settingsfolder = "./settings/" # linux
 def execute(what): # commandline execute
 	os.system(what)
 
@@ -47,8 +49,9 @@ class camera(object):
 		self.writetimestamp(imagestring, loopcount)
 		time.sleep(0.25)
 	def writetimestamp(self,image, a):
+		global timestampPath
 		date = time.strftime("%a %d.%m.%Y %H:%M:%S") # get current time, in this form day daynumber.month.year time:minute:second
-		if MyPlatform == "Linux":
+		if MyPlatform == "Linux": # the imaging module actually work on linux
 			import Image
 			import ImageFont
 			import ImageDraw
@@ -67,7 +70,8 @@ class camera(object):
 
 			im.save(image)
 		else:
-			x = open("timestamp.txt", "a")
+			#write timestamp to textfile, to be written to image afterwards
+			x = open(timestampPath, "a")
 			x.write(date + "=-=" + str(a)+"\n")
 			x.close()
 class SettingFunc(object):
@@ -75,9 +79,9 @@ class SettingFunc(object):
 		x = open("settings/%s"% filename)
 		line = x.readline()
 		while line != '':
-			if list(line)[0] != '\n':
+			if list(line)[0] != '\n': # if not empty enter
 				#print list(line)
-				self.setting(line)
+				self.setting(line) # use the setting
 			else:
 				print "invalid setting"
 			line = x.readline()
@@ -102,7 +106,7 @@ class SettingFunc(object):
 		
 		if sett != " " or "\n" or '\n' or '': 
 			os.system("v4l2-ctl --set-ctrl %s"% sett) # sett the setting
-class Nxt(object):
+class Nxt(object): # out of function
 	def PortToMethod(port):
 		meth = "a"
 		if port.upper() == "A":
@@ -131,7 +135,7 @@ class Nxt(object):
 		if self.left == 0:
 			self.left = config["TurnInterval"]
 			self.Motor_a.update(config["TurnPower"], config["TurnAngle"], True)
-			self.Motor_
+			
 def move(imagestring, numb):
 	print "moving to webserver"
 	execute("sudo cp %s /var/www/webcam/now/webcam%s.jpg"% (imagestring,str(numb)))
@@ -139,6 +143,11 @@ def move(imagestring, numb):
 
 def movecurrent(current): #autochange
 	execute("sudo mv settings settings_%s"% current.upper() )
+def WriteLoopcunt(loopcount): # write loopcount to text file
+	global numberPath
+	x = open(numberPath, "w")
+	x.write(str(loopcount))
+	x.close()
 
 def usersettings():
 	global currentsetting, MyPlatform
@@ -175,13 +184,14 @@ def usersettings():
 		config["TurnInterval"] = int(raw_input("Turn every x minute: "))
 		config["TurnPower"] = int(raw_input("With how much power (1-100): "))
 		config["TurnAngle"] = int(raw_input("How many high angle of turn every update: "))
-		
+	
 	return config
 
 config = usersettings()
+
 #get picture number
 x = open("number.txt")
-a = int(x.readline())
+loopcount = int(x.readline())
 x.close()
 
 #class init
@@ -196,12 +206,13 @@ if MyPlatform == "Linux": #folder name fixes
 		os.system("mkdir %s"% prefix+folder)
 
 
-	settingsfolder = "./settings/"
-	files = os.listdir(settingsfolder[0:len(settingsfolder)-1])
-	print "settings: " + str(files)
+	SettingsFiles = os.listdir(settingsfolder)
+	print "SettingFiles: " + str(files)
 
-	for sett in files:
-		SettingClass.checksetting(settingsfolder, sett)
+	for sett in SettingsFiles:
+		SettingClass.checksetting(settingsfolder, sett) #just printing them, so that the user can spot mistakes
+		#wait for input
+		raw_input("continue?, (if not press Ctrl + C)")
 else:
 	prefix = os.getcwd()[2:len( os.getcwd() )]
 	folder = "\selbulantimelapsv2"
@@ -212,37 +223,34 @@ else:
 
 
 while True:
-	start = time.time()
-	a = a+1
+	timestart = time.time()
 	
-	x = open("number.txt", "w")
-	x.write(str(a))
-	x.close()
+	loopcount = loopcount+1
+	WriteLoopcunt(loopcount) # write to txt
 	
-	#get setting filenames
-	loopcount  = 0
 	if MyPlatform == "Linux":
 		
-		if config["SinglePic"] == False:
-			SettingClass.setting("exposure_auto=3")
+		if config["SinglePic"] == False: # we are not doing singlepictures
+		
+			SettingClass.setting("exposure_auto=3") 
 			SettingClass.setting("exposure_auto_priority=1")
-			for i in files:
-				imagestring = prefix+folder+"/%s/%s.jpg"% (str(i), a)
+			for SettFile in SettingFiles:
+				imagestring = prefix+folder+"/%s/%s.jpg"% (str(SettFile), loopcount)
 				print "imagestring: %s"% imagestring
 
-				SettingClass.getsetting(str(i)) #get and set settings
-				camera.capture(imagestring, a) # capture image
-				move(imagestring, i) # copy to webserver
+				SettingClass.getsetting(str(SettFile)) #get and set settings
+				camera.capture(imagestring, loopcount) # capture image
+				move(imagestring, SettFile) # copy to webserver
 				print
 		
-		else:
-			imagestring = prefix+folder+"/%s/%s.jpg"% (config["SinglePicCaptureFolder"], a)
+		else: # singlepictures, we set up matchmaking webservers for them. so that they can date!
+			imagestring = prefix+folder+"/%s/%s.jpg"% (config["SinglePicCaptureFolder"], loopcount)
 		
-		
+			
 			SettingClass.setting("exposure_auto=1")
 			SettingClass.setting("exposure_auto_priority=0")
 			
-			camera.capture(imagestring, a) # capture image
+			camera.capture(imagestring, loopcount) # capture image
 			move(imagestring, config["SinglePicCaptureFolder"]) # copy to webserver
 		
 		print
@@ -257,14 +265,15 @@ while True:
 				for type in targets.keys():
 					if targetsetting == type:
 						execute("sudo mv settings_%s settings"% type.upper() )
-	else:
-		imagestring = prefix+folder+"/%s/%s.jpg"% (str(2), a)
+	else: # windows just capture
+		imagestring = prefix+folder+"/%s/%s.jpg"% (str(2), loopcount)
 		
-		camera.capture(imagestring, a) # capture image
+		camera.capture(imagestring, loopcount) # capture image
 	
-	end = time.time()
-	timeused = end-start
-	print "time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(a/24.0)) 
+	#wai
+	timeend = time.time()
+	timeused = timeend-timestart
+	print "time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(loopcount/24.0)) 
 	print
 	print
 	time.sleep(60-(end-start))
