@@ -122,16 +122,16 @@ class Nxt(object): # out of function
 		sock = nxt.locator.find_one_brick()
 		self.brick = sock.connect()
 		
-		self.Motor_a = nxt.motor.Motor(self.brick, PortToMethod(config["Motor1"]) )
-		self.Motor_b = nxt.motor.Motor(self.brick, PortToMethod(config["Motor2"]) )
+		self.Motor = nxt.motor.Motor(self.brick, PORT_ALL) )
 		
 		self.loopcount = 0
 	def main(self,config): # called every minute, uses TurnInverval for when to execute
 		self.loopcount += 1
 		if loopcount == 1:
-			self.left = config["TurnInterval"]-1
+			self.left = config["TurnInterval"]-1 # minus one because it counts current round
 		else:
 			self.left -= 1
+			8
 		if self.left == 0:
 			self.left = config["TurnInterval"]
 			self.Motor_a.update(config["TurnPower"], config["TurnAngle"], True)
@@ -151,7 +151,7 @@ def WriteLoopcunt(loopcount): # write loopcount to text file
 
 def usersettings():
 	global currentsetting, MyPlatform
-	# Autochange, SinglePic, CurrentSettingName, SinglePicCaptureFolder, AutoRotate, Motor1, Motor2, TurnInterval, TurnPower
+	# Autochange, SinglePic, CurrentSettingName, SinglePicCaptureFolder, AutoRotate, TurnInterval, TurnPower
 	config = {"AutoChange" : False} # config dictionary
 	config["SinglePic"] = raw_input("Single image?, (1=yes, 0=no):")
 	
@@ -175,11 +175,7 @@ def usersettings():
 	if config["AutoRotate"] == "0":
 		config["AutoRotate"] = False
 	if config["AutoRotate"] == "1":
-		config["AutoRotate"] = True
-		
-		motors = raw_input("Nxt Motors? list two (a b c): ")
-		config["Motor1"] = motors[0]
-		config["Motor2"] = motors[1]
+		config["AutoRotate"] = Tru
 	
 		config["TurnInterval"] = int(raw_input("Turn every x minute: "))
 		config["TurnPower"] = int(raw_input("With how much power (1-100): "))
