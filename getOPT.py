@@ -1,7 +1,7 @@
 import os
 import imaging
 import math
-class main(object):
+class getevopt(object):
 	def main():
 		# take image with set ev
 		os.system("v4l2-ctl --set-ctrl exposure_absolute=1000")
@@ -17,4 +17,9 @@ class main(object):
 				sumb += b
 		bpre = sumb/(image.size[0]*image.size[1])
 		evopt = 1000 + math.log(bpre,2)
-	
+		
+		print(evopt)
+		return evopt
+
+clas = getevopt()
+clas.main()
