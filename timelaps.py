@@ -318,7 +318,7 @@ while True:
 		
 		camera.capture(imagestring, loopcount) # capture image
 	
-	#wai
+	#wait
 	timeend = time.time()
 	timeused = timeend-timestart
 	print("time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(loopcount/24.0)) )
