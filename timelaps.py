@@ -25,7 +25,6 @@ class camera(object):
 			import pygame.camera
 			pygame.camera.init()
 			clist = pygame.camera.list_cameras()
-			print clist
 			
 			#find the resoulution that works with the camera
 			loopcount = -1
@@ -40,7 +39,7 @@ class camera(object):
 					loopcount += 1
 					going = True
 			print "set resolution to: " + str(self.size)
-	def capture(self, imagestring, loopcount):
+	def capture(self, imagestring, loopcount, writetime):
 		import pygame.camera
 		global MyPlatform #platform name
 		print("capturing %s"% imagestring)
@@ -59,7 +58,11 @@ class camera(object):
 		
 		timeused = time.time()-timestart
 		
-		#self.writetimestamp(imagestring, loopcount)
+		print writetime
+		if writetime == "no":
+			self.logtimestamp(loopcount)
+		else:
+			self.writetimestamp(imagestring, loopcount)
 		time.sleep(0.25)
 		return timeused
 	def writetimestamp(self,image, a):
@@ -72,16 +75,14 @@ class camera(object):
 			import ImageFont
 			import ImageStat
 		except:
-			x = open(timestampPath, "a")
-			x.write(date + "=-=" + str(a)+"\n")
-			x.close()
+			self.logtimestamp(a)
 			failed = True
 		if failed == False:
 			ont = ImageFont.truetype("/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf", 20) # get font
 			
 			print("writing timestamp on image: " + date)
 			
-			im = Image.open( image )
+			im = Image.open( image ) # problems with reading the imagestring, it is formated wrongly
 			
 
 			canvas = ImageDraw.Draw( im )
@@ -89,6 +90,13 @@ class camera(object):
 			canvas.text( (10,10), date, (255,255,255), font=font)
 
 			im.save(image)
+	def logtimestamp(self, a):
+		global timestampPath
+		date = time.strftime("%a %d.%m.%Y %H:%M:%S") # get current time, in this form day daynumber.month.year time:minute:second
+
+		x = open(timestampPath, "a")
+		x.write(date + "=-=" + str(a)+"\n")
+		x.close()
 class SettingFunc(object):
 	def getsetting(self, filename):
 		x = open("settings/%s"% filename)
@@ -223,6 +231,8 @@ class usersettings(object):
 		self.config["AutoRotate"] = raw_input("AutoRotate using nxt?: (yes or no):")
 		self.Nxt()
 		
+		self.config["WriteTimestamp"] = raw_input("Write timestamp on image? (yes or no): ")
+		
 		return self.config
 clas = usersettings()
 config = clas.main()
@@ -258,8 +268,6 @@ else:
 	folder = "\selbulantimelapsv2"
 	os.system("mkdir %s"% prefix+folder)
 #setting("focus_auto=1")
-
-
 
 while True:
 	timestart = time.time()
@@ -316,9 +324,8 @@ while True:
 	else: # windows just capture
 		imagestring = prefix+folder+"\%s\%s.jpg"% (config["SinglePicCaptureFolder"], loopcount)
 		
-		camera.capture(imagestring, loopcount) # capture image
-	
-	#
+		camera.capture(imagestring, loopcount, config["WriteTimestamp"]) # capture image
+		
 	#wait
 	timeused = time.time()-timestart
 	print("time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(loopcount/24.0)) )
