@@ -13,7 +13,6 @@ def execute(what): # commandline execute
 
 class camera(object):
 	def __init__(self):
-		
 		global MyPlatform
 		if MyPlatform == "Linux":
 			folder = os.listdir("/dev")
@@ -26,39 +25,59 @@ class camera(object):
 			import pygame.camera
 			pygame.camera.init()
 			clist = pygame.camera.list_cameras()
+			print clist
 			
-			if not clist:
-				raise ValueError("Sorry, no cameras detected.")
-			
-			self.cam = pygame.camera.Camera(clist[0], (2304,1536), "YUYV") # define camera
-			
+			#find the resoulution that works with the camera
+			loopcount = -1
+			sizes = [(1080,720), (2304,1536), (640,480), (320,240),(800,600)]
+			going = True
+			while going:
+				going = False
+				try:
+					self.size = sizes[loopcount]
+					self.cam = pygame.camera.Camera(clist[0], self.size) # define camera
+				except:
+					loopcount += 1
+					going = True
+			print "set resolution to: " + str(self.size)
 	def capture(self, imagestring, loopcount):
 		import pygame.camera
 		global MyPlatform #platform name
 		print("capturing %s"% imagestring)
 		
+		timestart = time.time()
 		if MyPlatform == "Linux":
-			execute("sudo fswebcam -q --jpeg 95 -d /dev/video0 -i 0 -r 2304x1536 --no-banner --no-timestamp %s"% imagestring) # -p YUYV, capture image
+			execute("sudo fswebcam -q --jpeg 95 -d /dev/video0 -i 0 -r 1080x720 --no-banner --no-timestamp %s"% imagestring) # -p YUYV, capture image
 		
 		elif MyPlatform == "Windows":
-			#use pygame to capture image
+			import pygame.camera
 			self.cam.start()
-			
-			pygame.image.save(self.cam.get_image(), imagestring)
+			surface = pygame.Surface(self.size)
+			image = self.cam.get_image(surface)
+			pygame.image.save(image, imagestring)
 			self.cam.stop()
-			
-		self.writetimestamp(imagestring, loopcount)
+		
+		timeused = time.time()-timestart
+		
+		#self.writetimestamp(imagestring, loopcount)
 		time.sleep(0.25)
+		return timeused
 	def writetimestamp(self,image, a):
 		global timestampPath
 		date = time.strftime("%a %d.%m.%Y %H:%M:%S") # get current time, in this form day daynumber.month.year time:minute:second
-		if MyPlatform == "Linux": # the imaging module actually work on linux
+		failed = False
+		try:
 			import Image
-			import ImageFont
 			import ImageDraw
+			import ImageFont
 			import ImageStat
-			
-			font = ImageFont.truetype("/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf", 20) # get font
+		except:
+			x = open(timestampPath, "a")
+			x.write(date + "=-=" + str(a)+"\n")
+			x.close()
+			failed = True
+		if failed == False:
+			ont = ImageFont.truetype("/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf", 20) # get font
 			
 			print("writing timestamp on image: " + date)
 			
@@ -70,11 +89,6 @@ class camera(object):
 			canvas.text( (10,10), date, (255,255,255), font=font)
 
 			im.save(image)
-		else:
-			#write timestamp to textfile, to be written to image afterwards
-			x = open(timestampPath, "a")
-			x.write(date + "=-=" + str(a)+"\n")
-			x.close()
 class SettingFunc(object):
 	def getsetting(self, filename):
 		x = open("settings/%s"% filename)
@@ -108,15 +122,6 @@ class SettingFunc(object):
 		if sett != " " or "\n" or '\n' or '': 
 			os.system("v4l2-ctl --set-ctrl %s"% sett) # sett the setting
 class Nxt(object): # out of function
-	def PortToMethod(port):
-		meth = "a"
-		if port.upper() == "A":
-			meth = nxt.motor.PORT_A
-		elif port.upper() == "B":
-			meth = nxt.motor.PORT_B
-		elif port.upper() == "C":
-			meth = nxt.motor.PORT_C
-		return meth
 	def __init__(self):
 		import nxt.locator
 		import nxt.motor
@@ -135,7 +140,7 @@ class Nxt(object): # out of function
 			8
 		if self.left == 0:
 			self.left = config["TurnInterval"]
-			self.Motor_a.update(config["TurnPower"], config["TurnAngle"], True)
+			self.Motor.update(config["TurnPower"], config["TurnAngle"], True)
 class server(object):
 	def server(self):
 		self.socket.listen(5)
@@ -169,24 +174,19 @@ def WriteLoopcunt(loopcount): # write loopcount to text file
 	x.write(str(loopcount))
 	x.close()
 class usersettings(object):
-	def NumbToBool(string):
-		if string == "1":
-			toreturn = True
-		else:
-			toreturn = False
-		return toreturn
 	def SocketCapSync(self):
 		global MyPlatform
-		if self.config["SocketCapSync"] == True:
+		if self.config["SocketCapSync"] == "yes":
 			self.config["SocketCapSyncType"] = input("server or client?:")
 			self.config["InternetProtocolAdress"] = input("ip? (if server then my ip, if client then their ip):")
 		else:
 			self.config["SocketCapSyncType"] = None
 			self.config["InternetProtocolAdress"] = None
 	def SinglePic(self):
-		if self.config["SinglePic"] == True:
+		if self.config["SinglePic"] == "no":
 			self.config["AutoChange"] = input("auto change camera settings (1=yes, 0=no): ")
-			self.config["AutoChange"] = NumbToBool(self.config["AutoChange"])
+			self.config["AutoChange"] = self.NumbToBool(self.config["AutoChange"])
+			
 			if self.config["AutoChange"] == True:
 				self.config["CurrentSettingName"] = input("current setting name: ")
 			else:
@@ -194,14 +194,14 @@ class usersettings(object):
 			
 			if MyPlatform == "Linux":
 				self.config["ExAlgo"] = input("Use homemade exposure algorithm? (yes=1, no=0: ")
-				self.config["ExAlgo"] = NumbToBool(self.config["ExAlgo"])
+				self.config["ExAlgo"] = self.NumbToBool(self.config["ExAlgo"])
 		else:
 			self.config["SinglePicCaptureFolder"] = raw_input("folder to capture to (1,2,3):")
 			self.config["AutoChange"] = None
 			self.config["CurrentSettingName"] = None
 			self.config["ExAlgo"] = None
 	def Nxt(self):
-		if self.config["AutoRotate"] == True:
+		if self.config["AutoRotate"] == "yes":
 			self.config["TurnInterval"] = int(input("Turn every x minute: "))
 			self.config["TurnPower"] = int(input("With how much power (1-100): "))
 			self.config["TurnAngle"] = int(input("How many high angle of turn every update: "))
@@ -209,26 +209,24 @@ class usersettings(object):
 			self.config["TurnInterval"] = None
 			self.config["TurnPower"] = None
 			self.config["TurnAngle"] = None
-	def main():
+	def main(self):
 		global currentsetting, MyPlatform
 		# Autochange, SinglePic, CurrentSettingName, SinglePicCaptureFolder, AutoRotate, TurnInterval, TurnPower
 		self.config = {"AutoChange" : False} # config dictionary
 		
-		self.config["SocketCapSync"] = raw_input("Network Camera Syncing?: (1=yes 0=no):")
-		self.config["SocketCapSync"] = NumbToBool(self.config["SocketCapSync"])
+		self.config["SocketCapSync"] = raw_input("Network Camera Syncing?: (yes or no):")
 		self.SocketCapSync()
 		
-		self.config["SinglePic"] = raw_input("Single image?, (1=yes, 0=no):")
-		self.config["SinglePic"] = NumbToBool( self.config["SinglePic"] )
+		self.config["SinglePic"] = raw_input("Single image?, (yes or no):")
 		self.SinglePic()
 
-		self.config["AutoRotate"] = raw_input("AutoRotate using nxt?: (1=yes 0=no):")
-		self.config["AutoRotate"] = NumbToBool(self.config["AutoRotate"])
+		self.config["AutoRotate"] = raw_input("AutoRotate using nxt?: (yes or no):")
 		self.Nxt()
 		
 		return self.config
+clas = usersettings()
+config = clas.main()
 
-config = usersettings()
 
 #get picture number
 x = open("number.txt")
@@ -248,17 +246,17 @@ if MyPlatform == "Linux": #folder name fixes
 
 
 	SettingsFiles = os.listdir(settingsfolder)
-	print("SettingFiles: " + str(files))
+	print("SettingFiles: " + str(SettingsFiles))
 
 	for sett in SettingsFiles:
 		SettingClass.checksetting(settingsfolder, sett) #just printing them, so that the user can spot mistakes
 		#wait for input
 		raw_input("continue?, (if not press Ctrl + C)")
 else:
+	a = "\s"
 	prefix = os.getcwd()[2:len( os.getcwd() )]
 	folder = "\selbulantimelapsv2"
 	os.system("mkdir %s"% prefix+folder)
-hva 
 #setting("focus_auto=1")
 
 
@@ -266,12 +264,12 @@ hva
 while True:
 	timestart = time.time()
 	
-	loopcount = loopcount+1
+	loopcount += 1
 	WriteLoopcunt(loopcount) # write to txt
 	
 	if MyPlatform == "Linux":
 		
-		if config["SinglePic"] == False: # we are not doing singlepictures
+		if config["SinglePic"] == "no": # we are not doing singlepictures
 		
 			SettingClass.setting("exposure_auto=3") 
 			SettingClass.setting("exposure_auto_priority=1")
@@ -280,25 +278,27 @@ while True:
 				print("imagestring: %s"% imagestring)
 
 				SettingClass.getsetting(str(SettFile)) #get and set settings
-				camera.capture(imagestring, loopcount) # capture image
+				CaptureTime = camera.capture(imagestring, loopcount) # capture image
 				move(imagestring, SettFile) # copy to webserver
 				print()
 		
-		else: # singlepictures, we set up matchmaking webservers for them. so that they can date!
+		else: # singlepictures for linux
 			imagestring = prefix+folder+"/%s/%s.jpg"% (config["SinglePicCaptureFolder"], loopcount)
-		
-			
-			#SettingClass.setting("exposure_auto=0")
-			#SettingClass.setting("exposure_auto_priority=1")
-			
+
 			if config["ExAlgo"] == True:
+				SettingClass.setting("exposure_auto=0")
+				
 				focuslen = 5 # meter
 				fnumber = focuslen/0.008
-				exposuredur = 100 #second
+				exposuredur = 10 #second
 				ev = math.log( (math.pow(fnumber,2)/exposuretime), 2)
 				
 				SettingClass.setting("exposure_absolute=" + str(ev))
-			camera.capture(imagestring, loopcount) # capture image
+			else:
+				SettingClass.setting("exposure_auto=1")
+				SettingClass.setting("exposure_auto_priority=1")
+			
+			CaptureTime = camera.capture(imagestring, loopcount) # capture image
 			move(imagestring, config["SinglePicCaptureFolder"]) # copy to webserver
 		
 		print()
@@ -314,15 +314,15 @@ while True:
 					if targetsetting == type:
 						execute("sudo mv settings_%s settings"% type.upper() )
 	else: # windows just capture
-		imagestring = prefix+folder+"/%s/%s.jpg"% (str(2), loopcount)
+		imagestring = prefix+folder+"\%s\%s.jpg"% (config["SinglePicCaptureFolder"], loopcount)
 		
 		camera.capture(imagestring, loopcount) # capture image
 	
+	#
 	#wait
-	timeend = time.time()
-	timeused = timeend-timestart
+	timeused = time.time()-timestart
 	print("time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(loopcount/24.0)) )
 	print()
 	print()
-	time.sleep(60-(end-start))
+	time.sleep(60-timeused)
 	
