@@ -25,7 +25,9 @@ class camera(object):
 			import pygame.camera
 			pygame.camera.init()
 			clist = pygame.camera.list_cameras()
-			
+			if len(clist)>1:
+				print "there is more than one camera connected, using the first one detected"
+				
 			#find the resoulution that works with the camera
 			loopcount = -1
 			sizes = [(1080,720), (2304,1536), (640,480), (320,240),(800,600)]
@@ -57,8 +59,7 @@ class camera(object):
 			self.cam.stop()
 		
 		timeused = time.time()-timestart
-		
-		print writetime
+
 		if writetime == "no":
 			self.logtimestamp(loopcount)
 		else:
@@ -106,7 +107,7 @@ class SettingFunc(object):
 				#print list(line)
 				self.setting(line) # use the setting
 			else:
-				print("invalid setting")
+				print("invalid setting: " + line)
 			line = x.readline()
 			
 	def checksetting(self, settingsfolder, setting):
@@ -145,7 +146,7 @@ class Nxt(object): # out of function
 			self.left = config["TurnInterval"]-1 # minus one because it counts current round
 		else:
 			self.left -= 1
-			8
+			
 		if self.left == 0:
 			self.left = config["TurnInterval"]
 			self.Motor.update(config["TurnPower"], config["TurnAngle"], True)
@@ -329,7 +330,7 @@ while True:
 	#wait
 	timeused = time.time()-timestart
 	print("time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(loopcount/24.0)) )
-	print()
-	print()
+	print
+	print
 	time.sleep(60-timeused)
 	
