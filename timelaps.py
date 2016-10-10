@@ -2,6 +2,7 @@ import os
 import time
 import platform
 import math
+import atexit
 
 
 MyPlatform = platform.system() # current operating system
@@ -26,7 +27,10 @@ class camera(object):
 			pygame.camera.init()
 			clist = pygame.camera.list_cameras()
 			if len(clist)>1:
-				print "there is more than one camera connected, using the first one detected"
+				print "there is more than one camera connected"
+			if not clist:
+				print "you need to connect a v4l2 supported camera"
+				exit()
 				
 			#find the resoulution that works with the camera
 			loopcount = -1
@@ -52,11 +56,16 @@ class camera(object):
 		
 		elif MyPlatform == "Windows":
 			import pygame.camera
-			self.cam.start()
+			
 			surface = pygame.Surface(self.size)
-			image = self.cam.get_image(surface)
+			if config["CameraBiContinious"] == "No" or "no":
+				self.cam.start()
+				image = self.cam.get_image(surface)
+				self.cam.stop()
+			else:
+				image = self.cam.get_image(surface)
 			pygame.image.save(image, imagestring)
-			self.cam.stop()
+			
 		
 		timeused = time.time()-timestart
 
@@ -170,18 +179,6 @@ class server(object):
 			self.socket.bind((host,123))
 			client(self)
 			
-def move(imagestring, numb):
-	print("moving to webserver")
-	execute("sudo cp %s /var/www/webcam/now/webcam%s.jpg"% (imagestring,str(numb)))
-	
-
-def movecurrent(current): #autochange
-	execute("sudo mv settings settings_%s"% current.upper() )
-def WriteLoopcunt(loopcount): # write loopcount to text file
-	global numberPath
-	x = open(numberPath, "w")
-	x.write(str(loopcount))
-	x.close()
 class usersettings(object):
 	def SocketCapSync(self):
 		global MyPlatform
@@ -218,9 +215,15 @@ class usersettings(object):
 			self.config["TurnInterval"] = None
 			self.config["TurnPower"] = None
 			self.config["TurnAngle"] = None
+	def Camera(self):
+		if self.config["CameraContinious"] == "no":
+			self.config["CameraBiContinious"] = raw_input("as close to continious as possible? (yes or no): ")
+		else:
+			self.config["CameraBiContinious"] = None
 	def main(self):
 		global currentsetting, MyPlatform
-		# Autochange, SinglePic, CurrentSettingName, SinglePicCaptureFolder, AutoRotate, TurnInterval, TurnPower
+		# Autochange, SinglePic, CurrentSettingName, SinglePicCaptureFolder, AutoRotate, TurnInterval, TurnPower, WriteTimestamp
+		# Camerastart, CameraContinious, CameraBiContinious
 		self.config = {"AutoChange" : False} # config dictionary
 		
 		self.config["SocketCapSync"] = raw_input("Network Camera Syncing?: (yes or no):")
@@ -234,10 +237,28 @@ class usersettings(object):
 		
 		self.config["WriteTimestamp"] = raw_input("Write timestamp on image? (yes or no): ")
 		
+		if MyPlatform == "Windows":
+			self.config["CameraContinious"] = raw_input("Do you want the camera to run continiously? (yes or no): ")
+			self.Camera()
+		else:
+			self.config["CameraStart"] = None
 		return self.config
-clas = usersettings()
-config = clas.main()
+def move(imagestring, numb):
+	print("moving to webserver")
+	execute("sudo cp %s /var/www/webcam/now/webcam%s.jpg"% (imagestring,str(numb)))
+	
 
+def movecurrent(current): #autochange
+	execute("sudo mv settings settings_%s"% current.upper() )
+def WriteLoopcunt(loopcount): # write loopcount to text file
+	global numberPath
+	x = open(numberPath, "w")
+	x.write(str(loopcount))
+	x.close()
+def exitfunction():
+	camera.cam.stop()
+	print "stopping camera"
+	print "will continue where you stopped when starting again"
 
 #get picture number
 x = open("number.txt")
@@ -247,7 +268,12 @@ x.close()
 #class init
 SettingClass = SettingFunc()
 camera = camera()
-#server = server()
+clas = usersettings()
+config = clas.main()
+
+if config["CameraContinious"] == "Yes" or "yes":
+	camera.cam.start()
+	atexit.register(exitfunction)
 
 if MyPlatform == "Linux": #folder name fixes
 	prefix = "./"
@@ -276,6 +302,9 @@ while True:
 	loopcount += 1
 	WriteLoopcunt(loopcount) # write to txt
 	
+	if config["CameraBiContinious"] == "Yes" or "yes":
+		camera.cam.start()
+		
 	if MyPlatform == "Linux":
 		
 		if config["SinglePic"] == "no": # we are not doing singlepictures
@@ -283,7 +312,7 @@ while True:
 			SettingClass.setting("exposure_auto=3") 
 			SettingClass.setting("exposure_auto_priority=1")
 			for SettFile in SettingFiles:
-				imagestring = prefix+folder+"/%s/%s.jpg"% (str(SettFile), loopcount)
+				imagestring = prefix+folder+"/%s/%s.tif"% (str(SettFile), loopcount)
 				print("imagestring: %s"% imagestring)
 
 				SettingClass.getsetting(str(SettFile)) #get and set settings
@@ -292,7 +321,7 @@ while True:
 				print()
 		
 		else: # singlepictures for linux
-			imagestring = prefix+folder+"/%s/%s.jpg"% (config["SinglePicCaptureFolder"], loopcount)
+			imagestring = prefix+folder+"/%s/%s.tif"% (config["SinglePicCaptureFolder"], loopcount)
 
 			if config["ExAlgo"] == True:
 				SettingClass.setting("exposure_auto=0")
@@ -323,10 +352,13 @@ while True:
 					if targetsetting == type:
 						execute("sudo mv settings_%s settings"% type.upper() )
 	else: # windows just capture
-		imagestring = prefix+folder+"\%s\%s.jpg"% (config["SinglePicCaptureFolder"], loopcount)
+		imagestring = prefix+folder+"\%s\%s.tif"% (config["SinglePicCaptureFolder"], loopcount)
 		
 		camera.capture(imagestring, loopcount, config["WriteTimestamp"]) # capture image
 		
+	if config["CameraBiContinious"] == "Yes" or "yes":
+		camera.cam.stop()
+	
 	#wait
 	timeused = time.time()-timestart
 	print("time used: %s	time left to new round: %s	secound of film: %s"% (str(timeused), str(60-timeused), float(loopcount/24.0)) )
